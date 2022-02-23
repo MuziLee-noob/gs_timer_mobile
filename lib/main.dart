@@ -43,6 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final StopWatchTimer _stopWatchTimer = StopWatchTimer();
   final _isHours = true;
   final _scrollController = ScrollController();
+  final timeList = <TimeRecord>[];
 
   @override
   void dispose() {
@@ -53,6 +54,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    var timeRecord = TimeRecord();
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -78,6 +80,9 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                /**
+                 * 开始按钮
+                 */
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     primary: Colors.green,
@@ -85,13 +90,19 @@ class _MyHomePageState extends State<MyHomePage> {
                     shape: const StadiumBorder(),
                   ),
                   onPressed: () {
+                    timeRecord = TimeRecord();
+                    _stopWatchTimer.onExecute.add(StopWatchExecute.reset);
                     _stopWatchTimer.onExecute.add(StopWatchExecute.start);
+                    timeRecord.startTime = DateTime.now();
                   },
                   child: const Text('开始'),
                 ),
                 const SizedBox(
                   width: 10.0,
                 ),
+                /**
+                 * 停止按钮
+                 */
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     primary: Colors.redAccent,
@@ -100,12 +111,17 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                   onPressed: () {
                     _stopWatchTimer.onExecute.add(StopWatchExecute.stop);
+                    timeRecord.interval = _stopWatchTimer.rawTime.value;
+                    timeList.add(timeRecord);
                   },
                   child: const Text('停止'),
                 ),
                 const SizedBox(
                   width: 10.0,
                 ),
+                /**
+                 * 重置按钮
+                 */
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     primary: Colors.black,
@@ -134,11 +150,13 @@ class _MyHomePageState extends State<MyHomePage> {
               child: const Text('计次'),
             ),
             Container(
-              height: 120,
+              height: 300,
               margin: const EdgeInsets.all(8),
-              child: StreamBuilder<List<StopWatchRecord>>(
-                stream: _stopWatchTimer.records,
-                initialData: _stopWatchTimer.records.value,
+              child: StreamBuilder<List<TimeRecord>>(
+                stream: Stream.periodic(const Duration(seconds: 1), (value) {
+                  return timeList;
+                }),
+                initialData: timeList,
                 builder: (context, snapshot) {
                   final value = snapshot.data;
                   if (value!.isEmpty) {
@@ -159,7 +177,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              '${index + 1} - ${data.displayTime}',
+                              '${data.startTime.toLocal()} - ${data.interval}',
                               style: const TextStyle(
                                   fontSize: 17, fontWeight: FontWeight.bold),
                             ),
@@ -179,5 +197,15 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
+  }
+}
+
+class TimeRecord {
+  DateTime startTime = DateTime.now();
+  int interval = 0;
+
+  @override
+  String toString() {
+    return startTime.toString() + '-' + interval.toString();
   }
 }
