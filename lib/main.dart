@@ -44,6 +44,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final _isHours = true;
   final _scrollController = ScrollController();
   final timeList = <TimeRecord>[];
+  bool emergency = false;
 
   @override
   void dispose() {
@@ -63,6 +64,37 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Container(
+                height: 50,
+                margin: const EdgeInsets.all(8),
+                child: StreamBuilder<bool>(
+                  stream: Stream.periodic(const Duration(milliseconds: 500), (value) {
+                    return emergency;
+                  }),
+                  initialData: emergency,
+                  builder: (context, snapshot) {
+                    final value = snapshot.data!;
+                    if (value) {
+                      return const Text(
+                        "你快生了",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                      );
+                    } else {
+                      return const Text(
+                        "还不是时候",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                      );
+                    }
+                  },
+                )
+/*              child: Text(
+                "状态：${(emergency ? "你快生了" : "还不是时候")}",
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red),
+              ),*/
+            ),
             StreamBuilder<int>(
                 stream: _stopWatchTimer.rawTime,
                 initialData: _stopWatchTimer.rawTime.value,
@@ -111,27 +143,15 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                   onPressed: () {
                     _stopWatchTimer.onExecute.add(StopWatchExecute.stop);
+                    timeRecord.endTime = DateTime.now();
                     timeRecord.interval = _stopWatchTimer.rawTime.value;
                     timeList.add(timeRecord);
+                    // 停止stream
                   },
                   child: const Text('停止'),
                 ),
                 const SizedBox(
                   width: 10.0,
-                ),
-                /**
-                 * 重置按钮
-                 */
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    primary: Colors.black,
-                    padding: const EdgeInsets.all(4),
-                    shape: const StadiumBorder(),
-                  ),
-                  onPressed: () {
-                    _stopWatchTimer.onExecute.add(StopWatchExecute.reset);
-                  },
-                  child: const Text('重置'),
                 ),
               ],
             ),
@@ -145,15 +165,26 @@ class _MyHomePageState extends State<MyHomePage> {
                 shape: const BeveledRectangleBorder(),
               ),
               onPressed: () {
-                _stopWatchTimer.onExecute.add(StopWatchExecute.lap);
+                _stopWatchTimer.onExecute.add(StopWatchExecute.reset);
+                timeList.clear();
+                setState(() {
+                  emergency = false;
+                });
               },
-              child: const Text('计次'),
+              child: const Text('清空'),
+            ),
+            const SizedBox(
+              height: 20.0,
+              child: Text(
+                '开始时间    结束时间      持续    距上次时间',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+              ),
             ),
             Container(
-              height: 300,
+              height: 200,
               margin: const EdgeInsets.all(8),
               child: StreamBuilder<List<TimeRecord>>(
-                stream: Stream.periodic(const Duration(seconds: 1), (value) {
+                stream: Stream.periodic(const Duration(milliseconds: 500), (value) {
                   return timeList;
                 }),
                 initialData: timeList,
@@ -172,14 +203,24 @@ class _MyHomePageState extends State<MyHomePage> {
                     controller: _scrollController,
                     itemBuilder: (context, index) {
                       final data = value[index];
+                      Duration timeDiff = const Duration();
+                      if (index >= 1) {
+                        final lastData = value[index - 1];
+                        timeDiff = data.startTime.difference(lastData.endTime);
+                        if (timeDiff.inMinutes < 10) {
+                          if (emergency == false) {
+                            emergency = true;
+                          }
+                        }
+                      }
                       return Column(
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              '${data.startTime.toLocal()} - ${data.interval}',
+                              '${data.formatStartTime()}       ${data.formatEndTime()}       ${(data.interval / 1000).ceil().toString().padLeft(2, '0')} Sec       ${timeDiff.inMinutes.toString().padLeft(2, '0')} Min',
                               style: const TextStyle(
-                                  fontSize: 17, fontWeight: FontWeight.bold),
+                                  fontSize: 14, fontWeight: FontWeight.bold),
                             ),
                           ),
                           const Divider(
@@ -192,7 +233,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   );
                 },
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -202,10 +243,17 @@ class _MyHomePageState extends State<MyHomePage> {
 
 class TimeRecord {
   DateTime startTime = DateTime.now();
+  DateTime endTime = DateTime.now();
   int interval = 0;
 
   @override
   String toString() {
     return startTime.toString() + '-' + interval.toString();
+  }
+  String formatStartTime() {
+    return "${startTime.hour.toString().padLeft(2,'0')}:${startTime.minute.toString().padLeft(2,'0')}:${startTime.second.toString().padLeft(2,'0')}";
+  }
+  String formatEndTime() {
+    return "${endTime.hour.toString().padLeft(2,'0')}:${endTime.minute.toString().padLeft(2,'0')}:${endTime.second.toString().padLeft(2,'0')}";
   }
 }
