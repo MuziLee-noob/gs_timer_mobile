@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:stop_watch_timer/stop_watch_timer.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() {
   runApp(const MyApp());
@@ -43,6 +47,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final StopWatchTimer _stopWatchTimer = StopWatchTimer();
   final _isHours = true;
   final _scrollController = ScrollController();
+  final _streamController = StreamController<TimeRecord>();
   final timeList = <TimeRecord>[];
   bool emergency = false;
 
@@ -51,6 +56,7 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
     _stopWatchTimer.dispose();
     _scrollController.dispose();
+    _streamController.close();
   }
 
   @override
@@ -67,33 +73,12 @@ class _MyHomePageState extends State<MyHomePage> {
             Container(
                 height: 50,
                 margin: const EdgeInsets.all(8),
-                child: StreamBuilder<bool>(
-                  stream: Stream.periodic(const Duration(milliseconds: 500), (value) {
-                    return emergency;
-                  }),
-                  initialData: emergency,
-                  builder: (context, snapshot) {
-                    final value = snapshot.data!;
-                    if (value) {
-                      return const Text(
-                        "你快生了",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
-                      );
-                    } else {
-                      return const Text(
-                        "还不是时候",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
-                      );
-                    }
-                  },
+                child: Text(
+                  emergency ? '你快生了' : '还不是时候',
+                  style: emergency ?
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red) :
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
                 )
-/*              child: Text(
-                "状态：${(emergency ? "你快生了" : "还不是时候")}",
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red),
-              ),*/
             ),
             StreamBuilder<int>(
                 stream: _stopWatchTimer.rawTime,
@@ -145,8 +130,25 @@ class _MyHomePageState extends State<MyHomePage> {
                     _stopWatchTimer.onExecute.add(StopWatchExecute.stop);
                     timeRecord.endTime = DateTime.now();
                     timeRecord.interval = _stopWatchTimer.rawTime.value;
+                    if (timeList.isNotEmpty) {
+                      TimeRecord lastRecord = timeList[timeList.length - 1];
+                      Duration timeDiff = timeRecord.startTime.difference(lastRecord.endTime);
+                      if (timeDiff.inMinutes <= 10) {
+                        setState(() {
+                          emergency = true;
+                        });
+                        Fluttertoast.showToast(
+                            msg: "你快生了",
+                            toastLength: Toast.LENGTH_SHORT,
+                            gravity: ToastGravity.TOP,
+                            timeInSecForIosWeb: 1,
+                            backgroundColor: Colors.redAccent,
+                            textColor: Colors.white,
+                            fontSize: 16.0
+                        );
+                      }
+                    }
                     timeList.add(timeRecord);
-                    // 停止stream
                   },
                   child: const Text('停止'),
                 ),
@@ -199,37 +201,35 @@ class _MyHomePageState extends State<MyHomePage> {
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOut);
                   });
-                  return ListView.builder(
-                    controller: _scrollController,
-                    itemBuilder: (context, index) {
-                      final data = value[index];
-                      Duration timeDiff = const Duration();
-                      if (index >= 1) {
-                        final lastData = value[index - 1];
-                        timeDiff = data.startTime.difference(lastData.endTime);
-                        if (timeDiff.inMinutes < 10) {
-                          if (emergency == false) {
-                            emergency = true;
-                          }
+                  return Scrollbar(
+                    isAlwaysShown: true,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      itemBuilder: (context, index) {
+                        final data = value[index];
+                        Duration timeDiff = const Duration();
+                        if (index >= 1) {
+                          final lastData = value[index - 1];
+                          timeDiff = data.startTime.difference(lastData.endTime);
                         }
-                      }
-                      return Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              '${data.formatStartTime()}       ${data.formatEndTime()}       ${(data.interval / 1000).ceil().toString().padLeft(2, '0')} Sec       ${timeDiff.inMinutes.toString().padLeft(2, '0')} Min',
-                              style: const TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.bold),
+                        return Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(
+                                '${data.formatStartTime()}       ${data.formatEndTime()}       ${(data.interval / 1000).ceil().toString().padLeft(2, '0')} Sec       ${timeDiff.inMinutes.toString().padLeft(2, '0')} Min',
+                                style: const TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.normal),
+                              ),
                             ),
-                          ),
-                          const Divider(
-                            height: 1.0,
-                          )
-                        ],
-                      );
-                    },
-                    itemCount: value.length,
+                            const Divider(
+                              height: 1.0,
+                            )
+                          ],
+                        );
+                      },
+                      itemCount: value.length,
+                    ),
                   );
                 },
               ),
